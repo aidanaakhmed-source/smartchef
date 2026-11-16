@@ -1,4 +1,3 @@
-
 {% load static %}
 <!DOCTYPE html>
 <html lang="{{ language }}">
@@ -117,41 +116,15 @@
 
           <div class="saved-meta">
             <div class="saved-meta-item">
-              <strong>
-                {% if language == 'ru' %}Продукты{% else %}Өнімдер{% endif %}
-              </strong>
+              <strong>{% if language == 'ru' %}Продукты{% else %}Өнімдер{% endif %}</strong>
               <span>{{ item.products }}</span>
             </div>
             <div class="saved-meta-item">
-              <strong>
-                {% if language == 'ru' %}Время{% else %}Уақыт{% endif %}
-              </strong>
+              <strong>{% if language == 'ru' %}Время{% else %}Уақыт{% endif %}</strong>
               <span>{{ item.minutes }} {% if language == 'ru' %}минут{% else %}минут{% endif %}</span>
             </div>
             <div class="saved-meta-item">
-              <strong>
-                {% if language == 'ru' %}Язык рецепта{% else %}Рецепт тілі{% endif %}
-              </strong>
-              <span>
-                {% if item.language == 'ru' %}Русский{% else %}Қазақша{% endif %}
-              </span>
-            </div>
-            <div class="saved-meta-item">
-              <strong>
-                {% if language == 'ru' %}Тип{% else %}Түрі{% endif %}
-              </strong>
-              <span>
-                {% if item.vegetarian %}
-                  🌿 {% if language == 'ru' %}Вегетарианский{% else %}Вегетариандық{% endif %}
-                {% else %}
-                  {% if language == 'ru' %}Обычный{% else %}Қалыпты{% endif %}
-                {% endif %}
-              </span>
-            </div>
-            <div class="saved-meta-item">
-              <strong>
-                {% if language == 'ru' %}Дата сохранения{% else %}Сақталған күні{% endif %}
-              </strong>
+              <strong>{% if language == 'ru' %}Дата{% else %}Күні{% endif %}</strong>
               <span>{{ item.created_at|date:"d.m.Y H:i" }}</span>
             </div>
           </div>
@@ -163,25 +136,29 @@
 
           <section class="recipe-change-tools" aria-label="{% if language == 'ru' %}Изменение рецепта{% else %}Рецептті өзгерту{% endif %}">
             <h3>{% if language == 'ru' %}Изменить этот рецепт с помощью AI{% else %}Осы рецептті AI арқылы өзгерту{% endif %}</h3>
-            <form method="post" action="{% url 'recipes:request_recipe_change' item.token %}" class="change-request-form">
+            
+            <form method="post" action="{% url 'recipes:request_recipe_change' item.token %}" class="change-request-form" onsubmit="handleSuggestionSubmit(this, '{{ item.token }}')">
               {% csrf_token %}
               <input type="hidden" name="language" value="{{ language }}">
               <label class="field-label" for="instruction-{{ item.token }}">
-                {% if language == 'ru' %}Что нужно изменить?{% else %}Нені өзгерткіңіз келеді?{% endif %}
+                {% if language == 'ru' %}Что нужно изменить? (3–300 символов){% else %}Нені өзгерткіңіз келеді? (3–300 таңба){% endif %}
               </label>
-              <textarea id="instruction-{{ item.token }}" name="instruction" maxlength="1000" required rows="3"
+              <textarea id="instruction-{{ item.token }}" name="instruction" minlength="3" maxlength="300" required rows="3"
                 placeholder="{% if language == 'ru' %}Например: сделай рецепт без молочных продуктов{% else %}Мысалы: сүт өнімдерінсіз нұсқасын жаса{% endif %}"></textarea>
-              <button class="btn btn-primary" type="submit">{% if language == 'ru' %}Предложить изменение{% else %}Өзгеріс ұсыну{% endif %}</button>
+              
+              <div id="loading-msg-{{ item.token }}" class="loading-message" style="display: none;">
+                <span class="spinner"></span>
+                {% if language == 'ru' %}AI готовит предложение...{% else %}AI ұсыныс дайындап жатыр...{% endif %}
+              </div>
+
+              <button id="submit-btn-{{ item.token }}" class="btn btn-primary" type="submit">
+                {% if language == 'ru' %}Получить предложение{% else %}Ұсыныс алу{% endif %}
+              </button>
             </form>
 
             {% if suggestion %}
               <div class="change-comparison">
                 <h3>{% if language == 'ru' %}Сравнение: новая версия{% else %}Салыстыру: жаңа нұсқа{% endif %}</h3>
-                {% if suggestion.changes %}
-                  <ul class="change-list">
-                    {% for change in suggestion.changes %}<li>{{ change }}</li>{% endfor %}
-                  </ul>
-                {% endif %}
                 <div class="change-version-grid">
                   <div class="change-version">
                     <h4>{% if language == 'ru' %}Текущая версия{% else %}Қазіргі нұсқа{% endif %}</h4>
@@ -189,7 +166,21 @@
                   </div>
                   <div class="change-version change-version-new">
                     <h4>{% if language == 'ru' %}Предложение AI{% else %}AI ұсынысы{% endif %}</h4>
-                    <div class="recipe">{{ suggestion.recipe }}</div>
+                    <div class="json-recipe">
+                      <h4>{{ suggestion.title }}</h4>
+                      <p><strong>{% if language == 'ru' %}Ингредиенты:{% else %}Ингредиенттер:{% endif %}</strong></p>
+                      <ul>
+                        {% for ing in suggestion.ingredients %}
+                          <li>{{ ing }}</li>
+                        {% endfor %}
+                      </ul>
+                      <p><strong>{% if language == 'ru' %}Шаги:{% else %}Қадамдар:{% endif %}</strong></p>
+                      <ol>
+                        {% for step in suggestion.steps %}
+                          <li>{{ step }}</li>
+                        {% endfor %}
+                      </ol>
+                    </div>
                   </div>
                 </div>
                 <div class="change-decision-actions">
@@ -231,8 +222,7 @@
               Өнімдерді таңдап, рецепт жасап, оны сақтаңыз.
             {% endif %}
           </p>
-          <a class="btn btn-primary"
-             href="{% url 'recipes:index' %}?language={{ language }}">
+          <a class="btn btn-primary" href="{% url 'recipes:index' %}?language={{ language }}">
             ✨ {% if language == 'ru' %}Создать первый рецепт{% else %}Алғашқы рецептті жасау{% endif %}
           </a>
         </section>
@@ -243,5 +233,20 @@
       SmartChef · {% if language == 'ru' %}Ваша кулинарная коллекция{% else %}Сіздің аспаздық жинағыңыз{% endif %}
     </footer>
   </main>
+
+  <script>
+    function handleSuggestionSubmit(form, token) {
+      const btn = document.getElementById('submit-btn-' + token);
+      const msg = document.getElementById('loading-msg-' + token);
+      const textarea = document.getElementById('instruction-' + token);
+      
+      if (textarea.value.trim().length < 3) {
+        return; // HTML5 handles required
+      }
+      
+      btn.style.display = 'none';
+      msg.style.display = 'flex';
+    }
+  </script>
 </body>
 </html>
